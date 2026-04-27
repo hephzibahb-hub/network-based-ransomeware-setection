@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SENTINEL — Ransomware Network Intelligence</title>
+  <meta name="description" content="Advanced ransomware detection through network traffic analysis powered by Machine Learning and Deep Learning models.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Variables ───────────────────────────────────────────── */
+    :root {
+      --bg:          #020817;
+      --surface:     rgba(255,255,255,0.03);
+      --elevated:    rgba(255,255,255,0.055);
+      --hover:       rgba(255,255,255,0.07);
+      --cyan:        #00d4ff;
+      --cyan-dim:    rgba(0,212,255,0.08);
+      --cyan-glow:   rgba(0,212,255,0.22);
+      --green:       #00ff9f;
+      --green-dim:   rgba(0,255,159,0.08);
+      --red:         #ff3355;
+      --red-dim:     rgba(255,51,85,0.08);
+      --amber:       #ffaa00;
+      --amber-dim:   rgba(255,170,0,0.08);
+      --purple:      #a855f7;
+      --purple-dim:  rgba(168,85,247,0.08);
+      --border:      rgba(0,212,255,0.12);
+      --border-hi:   rgba(0,212,255,0.3);
+      --text:        #e2e8f0;
+      --text-dim:    #94a3b8;
+      --text-muted:  #475569;
+      --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
+      --t: all 0.25s ease;
+    }
+
+    /* ── Reset ───────────────────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior: smooth; }
+
+    /* ── Body / Animated Grid Background ─────────────────────── */
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content:'';
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 44px 44px;
+      animation: gridDrift 25s linear infinite;
+    }
+    body::after {
+      content:'';
+      position:fixed; top:-20%; left:-10%; z-index:0; pointer-events:none;
+      width:700px; height:700px;
+      background: radial-gradient(circle, rgba(0,212,255,0.055) 0%, transparent 70%);
+      animation: orbFloat 18s ease-in-out infinite;
+    }
+    @keyframes gridDrift { to { background-position: 0 44px; } }
+    @keyframes orbFloat {
+      0%,100% { transform:translate(0,0); }
+      33%      { transform:translate(50px,-40px); }
+      66%      { transform:translate(-30px,50px); }
+    }
+
+    /* ── Navbar ──────────────────────────────────────────────── */
+    .navbar {
+      position: sticky; top:0; z-index:200;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 32px;
+      background: rgba(2,8,23,0.88);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand { display:flex; align-items:center; gap:12px; text-decoration:none; }
+    .nav-logo {
+      width:36px; height:36px; border-radius:9px;
+      background: linear-gradient(135deg, var(--cyan), #0073aa);
+      display:flex; align-items:center; justify-content:center;
+      font-size:18px; box-shadow: 0 0 18px var(--cyan-glow);
+      flex-shrink:0;
+    }
+    .nav-wordmark { line-height:1; }
+    .nav-title {
+      font-size:1.1rem; font-weight:700; letter-spacing:3px;
+      color:var(--cyan); text-transform:uppercase;
+    }
+    .nav-sub {
+      font-size:0.6rem; color:var(--text-muted);
+      font-family:'JetBrains Mono',monospace; letter-spacing:1px; text-transform:uppercase;
+    }
+    .nav-right { display:flex; align-items:center; gap:16px; }
+    .nav-status {
+      display:flex; align-items:center; gap:7px;
+      font-size:0.72rem; color:var(--text-dim);
+      font-family:'JetBrains Mono',monospace;
+    }
+    .status-dot {
+      width:8px; height:8px; border-radius:50%;
+      background:var(--green); box-shadow:0 0 8px var(--green);
+      animation: sdPulse 2s ease-in-out infinite;
+      flex-shrink:0;
+    }
+    @keyframes sdPulse {
+      0%,100% { opacity:1; box-shadow:0 0 8px var(--green); }
+      50%      { opacity:0.5; box-shadow:0 0 4px var(--green); }
+    }
+    .nav-badge {
+      padding:4px 10px; border-radius:100px;
+      background:var(--cyan-dim); border:1px solid var(--border);
+      font-size:0.62rem; font-family:'JetBrains Mono',monospace; color:var(--cyan);
+    }
+
+    /* ── Page wrapper ─────────────────────────────────────────── */
+    .page { position:relative; z-index:1; max-width:1380px; margin:0 auto; padding:36px 28px 60px; }
+
+    /* ── Hero ─────────────────────────────────────────────────── */
+    .hero { text-align:center; margin-bottom:40px; animation:fadeUp .7s ease both; }
+    .hero h1 {
+      font-size:clamp(2rem,4vw,3rem); font-weight:700;
+      letter-spacing:-1px; line-height:1.15; margin-bottom:12px;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(90deg, var(--cyan) 0%, #7c3aed 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .hero p { font-size:.95rem; color:var(--text-dim); max-width:480px; margin:0 auto; line-height:1.7; font-weight:300; }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(22px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ── Two-panel grid ──────────────────────────────────────── */
+    .panel-grid {
+      display:grid;
+      grid-template-columns: 400px 1fr;
+      gap:22px;
+      align-items:start;
+      margin-bottom:36px;
+    }
+
+    /* ── Panel (card) ─────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      padding: 26px;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      transition: border-color .3s, box-shadow .3s;
+      animation: fadeUp .7s ease both;
+    }
+    .panel:hover { border-color: rgba(0,212,255,0.22); box-shadow: 0 0 32px var(--cyan-glow); }
+    .panel:nth-child(2) { animation-delay:.1s; }
+
+    .pnl-label {
+      font-size:.65rem; font-weight:600; letter-spacing:2.5px; text-transform:uppercase;
+      color:var(--cyan); margin-bottom:18px;
+      display:flex; align-items:center; gap:8px;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .pnl-label::after {
+      content:''; flex:1; height:1px;
+      background:linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ── Tab switcher ─────────────────────────────────────────── */
+    .tab-group {
+      display:flex; background:rgba(0,0,0,0.3);
+      border:1px solid var(--border); border-radius:var(--r-md);
+      padding:4px; margin-bottom:20px; gap:4px;
+    }
+    .tab {
+      flex:1; padding:9px 14px; background:transparent; border:none;
+      border-radius:8px; color:var(--text-muted); font-size:.83rem; font-weight:500;
+      font-family:'Space Grotesk',sans-serif; cursor:pointer; transition:var(--t);
+      display:flex; align-items:center; justify-content:center; gap:7px;
+    }
+    .tab:hover { color:var(--text-dim); background:rgba(255,255,255,0.04); }
+    .tab.active {
+      background:var(--cyan-dim); color:var(--cyan);
+      box-shadow: 0 0 12px rgba(0,212,255,0.1);
+    }
+
+    /* ── Model selector ──────────────────────────────────────── */
+    .model-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:22px; }
+    .model-card {
+      padding:15px 12px; background:rgba(0,0,0,0.22);
+      border:1px solid var(--border); border-radius:var(--r-md);
+      cursor:pointer; font-family:'Space Grotesk',sans-serif;
+      color:var(--text-dim); transition:var(--t);
+      text-align:center; display:flex; flex-direction:column; align-items:center; gap:5px;
+      position:relative; overflow:hidden;
+    }
+    .model-card::before {
+      content:''; position:absolute; inset:0;
+      background: radial-gradient(circle at center, rgba(0,212,255,0.06), transparent 70%);
+      opacity:0; transition:opacity .3s;
+    }
+    .model-card:hover { border-color:var(--border-hi); color:var(--text); }
+    .model-card:hover::before { opacity:1; }
+    .model-card.active { border-color:var(--cyan); background:var(--cyan-dim); color:var(--cyan); box-shadow:0 0 14px rgba(0,212,255,0.15); }
+    .model-card.active::before { opacity:1; }
+    .mc-icon { font-size:1.7rem; }
+    .mc-name { font-size:.8rem; font-weight:600; }
+    .mc-tag {
+      font-size:.6rem; font-family:'JetBrains Mono',monospace; font-weight:500;
+      padding:2px 8px; border-radius:100px;
+      background:rgba(255,255,255,0.07); color:var(--text-muted); text-transform:uppercase;
+    }
+    .model-card.active .mc-tag { background:rgba(0,212,255,0.15); color:var(--cyan); }
+
+    /* ── Drop zone ───────────────────────────────────────────── */
+    .drop-zone {
+      position:relative; border:2px dashed var(--border); border-radius:var(--r-lg);
+      padding:28px 20px; text-align:center; cursor:pointer; transition:var(--t);
+      margin-bottom:20px;
+      background: repeating-linear-gradient(
+        45deg, transparent, transparent 8px,
+        rgba(0,212,255,0.012) 8px, rgba(0,212,255,0.012) 16px
+      );
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color:var(--cyan); background:var(--cyan-dim); box-shadow:0 0 24px var(--cyan-glow);
+    }
+    .drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+    .drop-icon { font-size:2.4rem; margin-bottom:10px; transition:transform .3s; display:block; }
+    .drop-zone:hover .drop-icon { transform:translateY(-5px); }
+    .drop-title { font-size:.9rem; font-weight:600; color:var(--text); margin-bottom:3px; }
+    .drop-sub { font-size:.75rem; color:var(--text-muted); margin-bottom:10px; }
+    .drop-hint {
+      display:inline-block; font-size:.68rem; font-family:'JetBrains Mono',monospace;
+      color:var(--text-muted); background:rgba(0,0,0,0.3);
+      padding:3px 10px; border-radius:100px; border:1px solid var(--border);
+    }
+    .file-info {
+      margin-top:12px; display:none; align-items:center; justify-content:center; gap:8px;
+      padding:7px 14px; background:rgba(0,255,159,0.08);
+      border:1px solid rgba(0,255,159,0.2); border-radius:var(--r-sm);
+      font-size:.78rem; color:var(--green); font-family:'JetBrains Mono',monospace;
+    }
+    .file-info.show { display:flex; }
+
+    /* ── Analyze button ──────────────────────────────────────── */
+    .analyze-btn {
+      width:100%; padding:15px; border:none; border-radius:var(--r-md);
+      background:linear-gradient(135deg, #00d4ff, #0090cc);
+      color:#020817; font-family:'Space Grotesk',sans-serif;
+      font-size:.98rem; font-weight:700; letter-spacing:.5px;
+      cursor:pointer; transition:var(--t); position:relative; overflow:hidden;
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      box-shadow:0 4px 22px rgba(0,212,255,0.3);
+    }
+    .analyze-btn:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,212,255,0.5); }
+    .analyze-btn:active { transform:translateY(0); }
+    .analyze-btn::after {
+      content:''; position:absolute; top:0; left:-100%; width:60%; height:100%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.28),transparent);
+      animation:shimmer 2.5s ease infinite;
+    }
+    @keyframes shimmer { 0%{left:-100%} 50%,100%{left:150%} }
+    .analyze-btn:disabled { opacity:.5; pointer-events:none; }
+
+    /* ── Results panel: empty state ──────────────────────────── */
+    .r-empty {
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; min-height:420px; gap:18px;
+      color:var(--text-muted); font-size:.88rem;
+    }
+    .radar {
+      position:relative; width:110px; height:110px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .radar-outer,.radar-inner {
+      position:absolute; border-radius:50%;
+      border:1px solid rgba(0,212,255,0.18);
+    }
+    .radar-outer { inset:0; animation:rPulse 2.2s ease-in-out infinite; }
+    .radar-inner { inset:22%; animation:rPulse 2.2s ease-in-out .4s infinite; }
+    .radar-core {
+      width:20px; height:20px; border-radius:50%;
+      background:rgba(0,212,255,0.35); box-shadow:0 0 14px var(--cyan);
+    }
+    .radar-sweep {
+      position:absolute; inset:0; border-radius:50%;
+      background:conic-gradient(from 0deg, rgba(0,212,255,0.22) 0deg 60deg, transparent 60deg);
+      animation:rSweep 3s linear infinite;
+    }
+    @keyframes rPulse {
+      0%,100%{opacity:.2; transform:scale(1)} 50%{opacity:.55; transform:scale(1.04)}
+    }
+    @keyframes rSweep { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+    /* ── Results content ─────────────────────────────────────── */
+    .r-content { display:none; }
+    .r-content.show { display:block; }
+
+    /* Verdict banner */
+    .verdict-banner {
+      display:flex; align-items:center; gap:14px;
+      padding:18px 22px; border-radius:var(--r-lg);
+      margin-bottom:20px; flex-wrap:wrap; border:1px solid;
+    }
+    .verdict-banner.benign  { background:var(--green-dim);  border-color:rgba(0,255,159,0.25); box-shadow:0 0 22px rgba(0,255,159,0.1); }
+    .verdict-banner.malicious{ background:var(--red-dim);   border-color:rgba(255,51,85,0.25);  box-shadow:0 0 22px rgba(255,51,85,0.1); }
+    .v-icon { font-size:2rem; line-height:1; }
+    .v-info { flex:1; }
+    .v-label {
+      font-size:.62rem; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+      color:var(--text-muted); margin-bottom:1px; font-family:'JetBrains Mono',monospace;
+    }
+    .v-value { font-size:1.35rem; font-weight:700; }
+    .v-badges { display:flex; gap:7px; flex-wrap:wrap; }
+    .badge {
+      padding:3px 11px; border-radius:100px; font-size:.65rem; font-weight:600;
+      letter-spacing:.5px; text-transform:uppercase; font-family:'JetBrains Mono',monospace;
+      border:1px solid;
+    }
+    .b-green  { background:rgba(0,255,159,0.1);   color:var(--green);  border-color:rgba(0,255,159,0.25); }
+    .b-red    { background:rgba(255,51,85,0.1);    color:var(--red);    border-color:rgba(255,51,85,0.25); }
+    .b-amber  { background:rgba(255,170,0,0.1);   color:var(--amber);  border-color:rgba(255,170,0,0.25); }
+    .b-cyan   { background:var(--cyan-dim);         color:var(--cyan);   border-color:var(--border); }
+    .b-purple { background:var(--purple-dim);        color:var(--purple); border-color:rgba(168,85,247,0.25); }
+
+    /* Threat Gauge */
+    .gauge-wrap {
+      text-align:center; padding:16px;
+      background:rgba(0,0,0,0.22); border:1px solid var(--border);
+      border-radius:var(--r-lg); display:flex; flex-direction:column; align-items:center;
+    }
+    .gauge-lbl {
+      font-size:.62rem; letter-spacing:2px; text-transform:uppercase;
+      color:var(--text-muted); margin-bottom:8px; font-family:'JetBrains Mono',monospace;
+    }
+    #gaugeCanvas { width:100% !important; max-width:200px; height:auto !important; display:block; }
+    .gauge-pct {
+      font-size:1.6rem; font-weight:700; font-family:'JetBrains Mono',monospace;
+      margin-top:4px; color:var(--text); line-height:1;
+    }
+    .gauge-sub { font-size:.68rem; color:var(--text-muted); margin-top:4px; }
+
+    /* Stats grid */
+    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px; }
+    .stat-card {
+      background:rgba(0,0,0,0.22); border:1px solid var(--border);
+      border-radius:var(--r-md); padding:12px 8px; text-align:center; transition:var(--t);
+    }
+    .stat-card:hover { border-color:var(--border-hi); background:rgba(0,212,255,0.04); }
+    .stat-val {
+      font-size:1.25rem; font-weight:700; font-family:'JetBrains Mono',monospace;
+      display:block; color:var(--text); margin-bottom:3px; word-break:break-all;
+    }
+    .stat-lbl { font-size:.58rem; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); }
+    .stat-card.safe   .stat-val { color:var(--green); }
+    .stat-card.danger .stat-val { color:var(--red); }
+    .stat-card.warn   .stat-val { color:var(--amber); }
+
+    /* Chart section */
+    .chart-section {
+      margin-bottom:20px; padding:16px;
+      background:rgba(0,0,0,0.22); border:1px solid var(--border); border-radius:var(--r-lg);
+    }
+    .sec-title {
+      font-size:.62rem; letter-spacing:2px; text-transform:uppercase;
+      color:var(--cyan); margin-bottom:12px; font-family:'JetBrains Mono',monospace;
+      display:flex; align-items:center; gap:8px;
+    }
+    .sec-title::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--border),transparent); }
+    .chart-layout {
+      display:grid; grid-template-columns:130px 1fr; gap:16px; align-items:center;
+    }
+    #familyChart { width:130px !important; height:130px !important; display:block; flex-shrink:0; }
+
+    /* Family bars */
+    .fbar-item { margin-bottom:11px; }
+    .fbar-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:.76rem; }
+    .fbar-name { font-weight:600; color:var(--text); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .fbar-count { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--text-muted); }
+    .fbar-track { height:5px; background:rgba(255,255,255,0.06); border-radius:100px; overflow:hidden; }
+    .fbar-fill { height:100%; border-radius:100px; width:0; transition:width 1.1s cubic-bezier(0.33,1,0.68,1); }
+
+    /* Explanation */
+    .explanation {
+      padding:14px 18px; background:rgba(0,0,0,0.22);
+      border:1px solid var(--border); border-left:3px solid var(--cyan);
+      border-radius:var(--r-md); font-size:.83rem; color:var(--text-dim);
+      line-height:1.75; margin-bottom:18px;
+    }
+
+    /* Action buttons */
+    .action-row { display:flex; gap:10px; }
+    .act-btn {
+      flex:1; padding:10px 14px; background:rgba(255,255,255,0.04);
+      border:1px solid var(--border); border-radius:var(--r-sm);
+      color:var(--text-dim); font-family:'Space Grotesk',sans-serif;
+      font-size:.8rem; font-weight:500; cursor:pointer; transition:var(--t);
+      display:flex; align-items:center; justify-content:center; gap:6px;
+    }
+    .act-btn:hover { border-color:var(--border-hi); color:var(--cyan); background:var(--cyan-dim); }
+
+    /* ── History section ─────────────────────────────────────── */
+    .history-section { margin-top:36px; animation: fadeUp .7s .2s ease both; }
+    .hist-header {
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;
+    }
+    .hist-title {
+      font-size:.65rem; font-weight:600; letter-spacing:2.5px; text-transform:uppercase;
+      color:var(--cyan); font-family:'JetBrains Mono',monospace;
+      display:flex; align-items:center; gap:10px;
+    }
+    .hist-count {
+      padding:2px 8px; background:var(--cyan-dim); border:1px solid var(--border);
+      border-radius:100px; font-size:.6rem;
+    }
+    .hist-clear {
+      padding:5px 12px; background:transparent; border:1px solid var(--border);
+      border-radius:var(--r-sm); color:var(--text-muted); font-family:'Space Grotesk',sans-serif;
+      font-size:.73rem; cursor:pointer; transition:var(--t);
+    }
+    .hist-clear:hover { border-color:var(--red); color:var(--red); }
+    .hist-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+    .hist-item {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--r-md); padding:14px; cursor:pointer; transition:var(--t);
+    }
+    .hist-item:hover { border-color:var(--border-hi); background:var(--elevated); transform:translateY(-2px); box-shadow:0 0 20px var(--cyan-glow); }
+    .hi-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+    .hi-fname { font-size:.8rem; font-weight:600; max-width:155px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .hi-verdict {
+      font-size:.62rem; font-weight:600; padding:2px 8px; border-radius:100px;
+      text-transform:uppercase; font-family:'JetBrains Mono',monospace;
+    }
+    .hi-verdict.benign   { background:rgba(0,255,159,0.1);  color:var(--green); border:1px solid rgba(0,255,159,0.2); }
+    .hi-verdict.malicious{ background:rgba(255,51,85,0.1);   color:var(--red);   border:1px solid rgba(255,51,85,0.2); }
+    .hi-meta { display:flex; justify-content:space-between; font-size:.69rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    .hi-bar { height:3px; background:rgba(255,255,255,0.06); border-radius:100px; margin-top:9px; overflow:hidden; }
+    .hi-bar-fill { height:100%; border-radius:100px; }
+    .hist-empty { color:var(--text-muted); font-size:.85rem; padding:24px 0; }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      position:relative; z-index:1; text-align:center; padding:24px 32px;
+      border-top:1px solid var(--border); color:var(--text-muted); font-size:.72rem;
+      font-family:'JetBrains Mono',monospace; letter-spacing:.5px;
+    }
+    footer span { color:var(--cyan); }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    #toastContainer { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:10px; }
+    .toast {
+      padding:12px 18px; border-radius:var(--r-md); font-size:.82rem; font-weight:500;
+      border:1px solid; backdrop-filter:blur(12px); animation:toastIn .3s ease both;
+      max-width:300px; display:flex; align-items:center; gap:10px;
+    }
+    .toast.success { background:rgba(0,255,159,0.12); border-color:rgba(0,255,159,0.3); color:var(--green); }
+    .toast.error   { background:rgba(255,51,85,0.12);  border-color:rgba(255,51,85,0.3);  color:var(--red); }
+    .toast.info    { background:var(--cyan-dim); border-color:var(--border); color:var(--cyan); }
+    @keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+    /* ── Scanning overlay bar on button ─────────────────────── */
+    .scan-bar {
+      position:absolute; bottom:0; left:0; height:3px;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent);
+      width:40%; animation:scanMove 1s ease-in-out infinite; display:none;
+    }
+    .analyze-btn:disabled .scan-bar { display:block; }
+    @keyframes scanMove { 0%{left:-40%} 100%{left:100%} }
+
+    /* ── Alert settings panel ─────────────────────────────── */
+    .alert-settings {
+      margin-top: 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      overflow: hidden;
+    }
+    .alert-toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 16px; cursor: pointer; transition: var(--t);
+      background: rgba(0,0,0,0.2);
+    }
+    .alert-toggle-row:hover { background: rgba(0,0,0,0.35); }
+    .alert-toggle-label {
+      display: flex; align-items: center; gap: 9px;
+      font-size: .82rem; font-weight: 600; color: var(--text-dim);
+    }
+    .alert-toggle-label .at-icon { font-size: 1rem; }
+    .alert-body {
+      display: none; padding: 16px;
+      background: rgba(0,0,0,0.15);
+      border-top: 1px solid var(--border);
+    }
+    .alert-body.open { display: block; }
+    .alert-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .alert-email-input {
+      flex: 1; padding: 10px 14px;
+      background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+      border-radius: var(--r-sm); color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: .8rem;
+      outline: none; transition: var(--t);
+    }
+    .alert-email-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(0,212,255,0.1); }
+    .alert-email-input::placeholder { color: var(--text-muted); }
+    .alert-save-btn {
+      padding: 10px 16px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--cyan-dim); color: var(--cyan);
+      font-family: 'Space Grotesk', sans-serif; font-size: .78rem; font-weight: 600;
+      cursor: pointer; transition: var(--t); white-space: nowrap;
+    }
+    .alert-save-btn:hover { background: rgba(0,212,255,0.15); border-color: var(--cyan); }
+    .auto-alert-row {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: .78rem; color: var(--text-dim);
+    }
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative; width: 36px; height: 20px; flex-shrink: 0;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; border-radius: 100px;
+      background: rgba(255,255,255,0.1); border: 1px solid var(--border);
+      cursor: pointer; transition: var(--t);
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--text-muted); left: 2px; top: 2px; transition: var(--t);
+    }
+    .toggle-switch input:checked + .toggle-slider { background: rgba(0,212,255,0.25); border-color: var(--cyan); }
+    .toggle-switch input:checked + .toggle-slider::before { background: var(--cyan); transform: translateX(16px); }
+    .alert-status-row {
+      margin-top: 10px; padding: 8px 12px;
+      border-radius: var(--r-sm); font-size: .73rem;
+      font-family: 'JetBrains Mono', monospace; display: none;
+    }
+    .alert-status-row.configured {
+      display: block; background: rgba(0,255,159,0.07);
+      border: 1px solid rgba(0,255,159,0.2); color: var(--green);
+    }
+    .alert-status-row.unconfigured {
+      display: block; background: rgba(255,170,0,0.07);
+      border: 1px solid rgba(255,170,0,0.2); color: var(--amber);
+    }
+
+    /* Alert modal */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(2,8,23,0.85); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: #0d1120; border: 1px solid rgba(255,51,85,0.3);
+      border-radius: var(--r-xl); padding: 32px; max-width: 480px; width: 90%;
+      box-shadow: 0 0 60px rgba(255,51,85,0.15);
+      transform: scale(0.95); transition: transform .25s;
+    }
+    .modal-overlay.open .modal { transform: scale(1); }
+    .modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+    .modal-icon { font-size: 2rem; }
+    .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .modal-sub { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+    .modal-body { margin-bottom: 22px; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-label { font-size: .65rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; display: block; }
+    .modal-input {
+      width: 100%; padding: 11px 14px;
+      background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+      border-radius: var(--r-sm); color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+      outline: none; transition: var(--t);
+    }
+    .modal-input:focus { border-color: var(--red); box-shadow: 0 0 0 2px rgba(255,51,85,0.1); }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-cancel {
+      flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: transparent; color: var(--text-muted);
+      font-family: 'Space Grotesk', sans-serif; font-size: .85rem; cursor: pointer; transition: var(--t);
+    }
+    .modal-cancel:hover { border-color: var(--border-hi); color: var(--text); }
+    .modal-send {
+      flex: 2; padding: 12px; border: none; border-radius: var(--r-sm);
+      background: linear-gradient(135deg, #ff3355, #cc0022);
+      color: #fff; font-family: 'Space Grotesk', sans-serif;
+      font-size: .85rem; font-weight: 700; cursor: pointer; transition: var(--t);
+      box-shadow: 0 4px 16px rgba(255,51,85,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .modal-send:hover { box-shadow: 0 6px 24px rgba(255,51,85,0.5); transform: translateY(-1px); }
+    .modal-send:disabled { opacity: .5; pointer-events: none; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media(max-width:900px) {
+      .panel-grid { grid-template-columns:1fr; }
+      .stats-grid { grid-template-columns:repeat(2,1fr); }
+      .chart-layout { grid-template-columns:1fr; }
+      .navbar { padding:12px 18px; }
+      .page { padding:24px 16px 48px; }
+    }
+    @media(max-width:540px) {
+      .hero h1 { font-size:1.8rem; }
+      .stats-grid { grid-template-columns:repeat(2,1fr); }
+      .model-grid { grid-template-columns:1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════╗ -->
+<!--   NAVBAR                               -->
+<!-- ╚══════════════════════════════════════╝ -->
+<nav class="navbar">
+  <a class="nav-brand" href="#">
+    <div class="nav-logo">🛡️</div>
+    <div class="nav-wordmark">
+      <div class="nav-title">SENTINEL</div>
+      <div class="nav-sub">Threat Intelligence Platform</div>
+    </div>
+  </a>
+  <div class="nav-right">
+    <div class="nav-status">
+      <span class="status-dot"></span>
+      <span>System Online</span>
+    </div>
+    <span class="nav-badge">v2.0</span>
+  </div>
+</nav>
+
+<!-- ╔══════════════════════════════════════╗ -->
+<!--   MAIN PAGE                            -->
+<!-- ╚══════════════════════════════════════╝ -->
+<div class="page">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Ransomware <span class="grad">Network Intelligence</span></h1>
+    <p>Upload a Zeek conn.log or PCAP file to detect ransomware families and classify network traffic in real time.</p>
+  </div>
+
+  <!-- Two-panel grid -->
+  <div class="panel-grid">
+
+    <!-- ── LEFT: Upload Panel ─────────────────────────── -->
+    <div class="panel">
+      <p class="pnl-label">▸ Analysis Configuration</p>
+
+      <!-- Input type tabs -->
+      <p style="font-size:.65rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Input Type</p>
+      <div class="tab-group" id="inputTabs">
+        <button class="tab active" data-type="conn" onclick="selectInputType('conn', this)">📊 Zeek conn.log</button>
+        <button class="tab" data-type="pcap" onclick="selectInputType('pcap', this)">📦 PCAP File</button>
+      </div>
+
+      <!-- Model selector -->
+      <p style="font-size:.65rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Detection Model</p>
+      <div class="model-grid">
+        <div class="model-card active" data-model="rf" id="cardRF" onclick="selectModel('rf')">
+          <span class="mc-icon">🌲</span>
+          <span class="mc-name">Random Forest</span>
+          <span class="mc-tag">ML</span>
+        </div>
+        <div class="model-card" data-model="dl" id="cardDL" onclick="selectModel('dl')">
+          <span class="mc-icon">🧠</span>
+          <span class="mc-name">Deep Learning</span>
+          <span class="mc-tag">Neural Net</span>
+        </div>
+      </div>
+
+      <!-- Drag & Drop -->
+      <p style="font-size:.65rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace;">Upload File</p>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".log,.pcap,.pcapng" onchange="handleFileSelect(event)">
+        <span class="drop-icon">📁</span>
+        <p class="drop-title">Drag &amp; drop your file here</p>
+        <p class="drop-sub">or click to browse</p>
+        <span class="drop-hint">.log &nbsp;·&nbsp; .pcap &nbsp;·&nbsp; .pcapng</span>
+        <div class="file-info" id="fileInfo">
+          <span>✓</span><span id="fileName">—</span>
+        </div>
+      </div>
+
+      <!-- Alert Settings -->
+      <div class="alert-settings" id="alertSettings">
+        <div class="alert-toggle-row" onclick="toggleAlertPanel()">
+          <div class="alert-toggle-label">
+            <span class="at-icon">📧</span>
+            <span>Admin Email Alerts</span>
+          </div>
+          <span id="alertChevron" style="color:var(--text-muted);font-size:.85rem;transition:transform .25s">▼</span>
+        </div>
+        <div class="alert-body" id="alertBody">
+          <div class="alert-input-row">
+            <input class="alert-email-input" id="savedEmail" type="email"
+              placeholder="admin@yourdomain.com" />
+            <button class="alert-save-btn" onclick="saveAdminEmail()">Save</button>
+          </div>
+          <div class="auto-alert-row">
+            <span>Auto-alert on threat detection</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="autoAlertToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="alert-status-row" id="smtpStatusRow"></div>
+        </div>
+      </div>
+
+      <!-- Analyze button -->
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyze()" style="margin-top:16px">
+        <div class="scan-bar"></div>
+        <span id="btnIcon">🔍</span>
+        <span id="btnText">Analyze Traffic</span>
+      </button>
+    </div>
+
+    <!-- ── RIGHT: Results Panel ───────────────────────── -->
+    <div class="panel" id="resultsPanel">
+      <p class="pnl-label">▸ Threat Analysis Results</p>
+
+      <!-- Empty state -->
+      <div class="r-empty" id="rEmpty">
+        <div class="radar">
+          <div class="radar-outer"></div>
+          <div class="radar-inner"></div>
+          <div class="radar-sweep"></div>
+          <div class="radar-core"></div>
+        </div>
+        <div style="text-align:center">
+          <p style="font-weight:600;color:var(--text-dim);margin-bottom:6px;">Awaiting scan target</p>
+          <p>Upload a file on the left to begin threat analysis</p>
+        </div>
+      </div>
+
+      <!-- Results content -->
+      <div class="r-content" id="rContent">
+
+        <!-- Verdict Banner -->
+        <div class="verdict-banner" id="verdictBanner">
+          <div class="v-icon" id="vIcon"></div>
+          <div class="v-info">
+            <div class="v-label">VERDICT</div>
+            <div class="v-value" id="vValue"></div>
+          </div>
+          <div class="v-badges" id="vBadges"></div>
+        </div>
+
+        <!-- Gauge + Stats row -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:14px;margin-bottom:18px;align-items:stretch;">
+          <div class="gauge-wrap">
+            <div class="gauge-lbl">Threat Level</div>
+            <canvas id="gaugeCanvas" width="200" height="120"></canvas>
+            <div class="gauge-pct" id="gaugePct">0%</div>
+            <div class="gauge-sub" id="gaugeSub">Malware Ratio</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;">
+            <div class="stat-card">
+              <span class="stat-val" id="sTotal">0</span>
+              <span class="stat-lbl">Total Flows</span>
+            </div>
+            <div class="stat-card safe">
+              <span class="stat-val" id="sBenign">0</span>
+              <span class="stat-lbl">Benign</span>
+            </div>
+            <div class="stat-card danger">
+              <span class="stat-val" id="sMalicious">0</span>
+              <span class="stat-lbl">Malicious</span>
+            </div>
+            <div class="stat-card warn">
+              <span class="stat-val" id="sRatio">0%</span>
+              <span class="stat-lbl">Malware %</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Family breakdown chart -->
+        <div class="chart-section">
+          <div class="sec-title">Family Breakdown</div>
+          <div class="chart-layout">
+            <canvas id="familyChart" width="130" height="130"></canvas>
+            <div id="familyBars" style="min-width:0;overflow:hidden;"></div>
+          </div>
+        </div>
+
+        <!-- Explanation -->
+        <div class="explanation" id="explanationBox"></div>
+
+        <!-- Alert button (shown only when malware detected) -->
+        <div id="alertBannerRow" style="display:none;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;
+            background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.25);
+            border-radius:var(--r-md);">
+            <span style="font-size:1.4rem;">🚨</span>
+            <div style="flex:1">
+              <div style="font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:2px;">Threat Detected — Alert Admin?</div>
+              <div style="font-size:.72rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;" id="alertTargetEmail">No email configured</div>
+            </div>
+            <button class="modal-send" style="flex:0;padding:9px 18px;font-size:.78rem;"
+              onclick="openAlertModal()">📧 Send Alert</button>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-row">
+          <button class="act-btn" onclick="exportJSON()">⬇ Export JSON</button>
+          <button class="act-btn" onclick="copyResults()">📋 Copy</button>
+          <button class="act-btn report-btn" onclick="generateReport()">📄 Generate Report</button>
+          <button class="act-btn" onclick="resetUI()">↺ New Scan</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- end panel-grid -->
+
+  <!-- ── History Section ──────────────────────────────── -->
+  <div class="history-section">
+    <div class="hist-header">
+      <div class="hist-title">
+        ▸ Analysis History
+        <span class="hist-count" id="histCount">0</span>
+      </div>
+      <button class="hist-clear" onclick="clearHistory()">✕ Clear All</button>
+    </div>
+    <div class="hist-grid" id="histGrid"></div>
+  </div>
+
+</div><!-- end .page -->
+
+<!-- ── Footer ──────────────────────────────────────────── -->
+<footer>
+  <span>SENTINEL</span> &nbsp;·&nbsp; Ransomware Network Intelligence &nbsp;·&nbsp;
+  Random Forest &amp; Deep Learning Detection &nbsp;·&nbsp;
+  Powered by <span>FastAPI + Zeek</span>
+</footer>
+
+<!-- ── Toast container ─────────────────────────────────── -->
+<div id="toastContainer"></div>
+
+<!-- ── Alert Modal ───────────────────────────────────────── -->
+<div class="modal-overlay" id="alertModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-icon">🚨</span>
+      <div>
+        <div class="modal-title">Send Threat Alert</div>
+        <div class="modal-sub">An email will be sent to the admin immediately</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label class="modal-label" for="modalEmail">Admin Email Address</label>
+        <input class="modal-input" id="modalEmail" type="email" placeholder="admin@example.com">
+      </div>
+      <div style="padding:12px 14px;background:rgba(255,51,85,0.07);border:1px solid rgba(255,51,85,0.2);border-radius:var(--r-sm);font-size:.78rem;color:var(--text-dim);">
+        ⚠️ SMTP must be configured in <code style="color:var(--cyan);font-family:'JetBrains Mono',monospace;">app/api/smtp_config.py</code> for this to work.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAlertModal()">Cancel</button>
+      <button class="modal-send" id="modalSendBtn" onclick="sendAlertEmail()">
+        <span id="modalSendIcon">📧</span>
+        <span id="modalSendText">Send Alert Now</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════════════╗ -->
+<!--   JAVASCRIPT                                           -->
+<!-- ╚══════════════════════════════════════════════════════╝ -->
+<script>
+'use strict';
+
+/* ─── State ──────────────────────────────────────────────── */
+let inputType  = 'conn';
+let modelType  = 'rf';
+let lastResult = null;
+let lastFile   = null;
+let familyChartInst = null;
+
+const HIST_KEY  = 'sentinel_history_v2';
+const MAX_HIST  = 10;
+
+/* ─── Colour palette for chart ─────────────────────────── */
+const FAM_COLOURS = [
+  '#00d4ff','#a855f7','#ffaa00','#ff3355','#00ff9f',
+  '#f97316','#ec4899','#06b6d4','#84cc16','#ef4444'
+];
+
+/* ─── Input type tabs ────────────────────────────────────── */
+function selectInputType(type, btn) {
+  inputType = type;
+  document.querySelectorAll('#inputTabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const fi = document.getElementById('fileInput');
+  fi.accept = type === 'pcap' ? '.pcap,.pcapng' : '.log';
+  clearFileSelection();
+}
+
+/* ─── Model selector ─────────────────────────────────────── */
+function selectModel(model) {
+  modelType = model;
+  document.getElementById('cardRF').classList.toggle('active', model === 'rf');
+  document.getElementById('cardDL').classList.toggle('active', model === 'dl');
+}
+
+/* ─── Drag & drop ────────────────────────────────────────── */
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+
+function handleFileSelect(e) {
+  const f = e.target.files[0];
+  if (f) setFile(f);
+}
+
+function setFile(f) {
+  lastFile = f;
+  document.getElementById('fileName').textContent = f.name;
+  const fi = document.getElementById('fileInfo');
+  fi.classList.add('show');
+  document.getElementById('dropZone').style.borderColor = 'var(--green)';
+}
+
+function clearFileSelection() {
+  lastFile = null;
+  document.getElementById('fileInfo').classList.remove('show');
+  document.getElementById('fileInput').value = '';
+  dropZone.style.borderColor = '';
+}
+
+/* ─── Main analyze function ──────────────────────────────── */
+async function analyze() {
+  if (!lastFile) { showToast('Please select a file first', 'error'); return; }
+
+  const btn  = document.getElementById('analyzeBtn');
+  const icon = document.getElementById('btnIcon');
+  const txt  = document.getElementById('btnText');
+
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  txt.textContent  = 'Scanning…';
+
+  let endpoint;
+  if (modelType === 'dl') {
+    endpoint = inputType === 'pcap' ? '/predict-pcap-dl' : '/predict-file-dl';
+  } else {
+    endpoint = inputType === 'pcap' ? '/predict-pcap' : '/predict-file';
+  }
+
+  const form = new FormData();
+  form.append('file', lastFile);
+
+  try {
+    const res  = await fetch(endpoint, { method: 'POST', body: form });
+    const data = await res.json();
+
+    btn.disabled = false;
+    icon.textContent = '🔍';
+    txt.textContent  = 'Analyze Traffic';
+
+    if (data.error) { showToast('API Error: ' + data.error, 'error'); return; }
+
+    lastResult = data;
+    renderResults(data, lastFile.name);
+    saveToHistory(data, lastFile.name);
+    renderHistory();
+
+  } catch (err) {
+    btn.disabled = false;
+    icon.textContent = '🔍';
+    txt.textContent  = 'Analyze Traffic';
+    showToast('Request failed: ' + err.message, 'error');
+  }
+}
+
+/* ─── Render results ─────────────────────────────────────── */
+function renderResults(data, filename) {
+  document.getElementById('rEmpty').style.display   = 'none';
+  document.getElementById('rContent').classList.add('show');
+
+  const isBenign = data.verdict === 'Benign';
+
+  /* Verdict banner */
+  const banner  = document.getElementById('verdictBanner');
+  banner.className = 'verdict-banner ' + (isBenign ? 'benign' : 'malicious');
+  document.getElementById('vIcon').textContent  = isBenign ? '✅' : '🚨';
+  document.getElementById('vValue').textContent = data.verdict;
+
+  const confClass = { High: 'b-red', Medium: 'b-amber', Low: 'b-green' }[data.confidence_tier] || 'b-cyan';
+  const modelUsed = data.model_used || 'Random Forest';
+  const modClass  = modelUsed.toLowerCase().includes('deep') ? 'b-purple' : 'b-amber';
+  document.getElementById('vBadges').innerHTML = `
+    <span class="badge ${isBenign ? 'b-green' : 'b-red'}">${data.verdict}</span>
+    <span class="badge ${confClass}">${data.confidence_tier} Confidence</span>
+    <span class="badge ${modClass}">🤖 ${modelUsed}</span>
+  `;
+
+  /* Threat gauge */
+  drawGauge(data.malware_ratio);
+  document.getElementById('gaugePct').textContent = (data.malware_ratio * 100).toFixed(1) + '%';
+  document.getElementById('gaugeSub').textContent = data.dominant_family !== 'Benign' ? data.dominant_family : 'No Threat';
+
+  /* Stats (animated counters) */
+  animateCounter('sTotal',    data.total_rows);
+  animateCounter('sBenign',   data.benign_rows);
+  animateCounter('sMalicious',data.malicious_rows);
+  document.getElementById('sRatio').textContent = (data.malware_ratio * 100).toFixed(1) + '%';
+
+  /* Family chart + bars */
+  renderFamilyChart(data.summary);
+  renderFamilyBars(data.summary, data.total_rows);
+
+  /* Explanation */
+  document.getElementById('explanationBox').innerHTML = '💡 ' + data.explanation;
+
+  showToast('Analysis complete — ' + data.verdict, isBenign ? 'success' : 'error');
+}
+
+/* ─── Gauge (SVG-style on Canvas) ───────────────────────── */
+function drawGauge(ratio) {
+  const canvas = document.getElementById('gaugeCanvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H - 20;
+  const R  = 95;
+
+  ctx.clearRect(0, 0, W, H);
+
+  /* Track */
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI, 0, false);
+  ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.stroke();
+
+  /* Colour: green→amber→red */
+  let colour;
+  if (ratio < 0.3)       colour = '#00ff9f';
+  else if (ratio < 0.65) colour = '#ffaa00';
+  else                   colour = '#ff3355';
+
+  /* Fill arc */
+  const startAngle = Math.PI;
+  const endAngle   = Math.PI + ratio * Math.PI;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, startAngle, endAngle, false);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth   = 14; ctx.lineCap = 'round';
+  ctx.stroke();
+
+  /* Glow */
+  ctx.shadowColor = colour;
+  ctx.shadowBlur  = 18;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, startAngle, endAngle, false);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  /* Needle dot */
+  const angle = Math.PI + ratio * Math.PI;
+  const nx = cx + R * Math.cos(angle);
+  const ny = cy + R * Math.sin(angle);
+  ctx.beginPath();
+  ctx.arc(nx, ny, 7, 0, 2 * Math.PI);
+  ctx.fillStyle = colour;
+  ctx.shadowColor = colour; ctx.shadowBlur = 14;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  /* Labels */
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.font = '11px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('0%',  cx - R - 4, cy + 18);
+  ctx.fillText('100%', cx + R + 4, cy + 18);
+}
+
+/* ─── Animated counter ───────────────────────────────────── */
+function animateCounter(id, target) {
+  const el  = document.getElementById(id);
+  const dur = 800;
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min((now - start) / dur, 1);
+    el.textContent = Math.round(p * target).toLocaleString();
+    if (p < 1) requestAnimationFrame(step);
+    else        el.textContent = target.toLocaleString();
+  }
+  requestAnimationFrame(step);
+}
+
+/* ─── Family doughnut chart ──────────────────────────────── */
+function renderFamilyChart(summary) {
+  if (familyChartInst) { familyChartInst.destroy(); familyChartInst = null; }
+  const labels  = Object.keys(summary);
+  const values  = Object.values(summary);
+  const colours = labels.map((_,i) => FAM_COLOURS[i % FAM_COLOURS.length]);
+
+  familyChartInst = new Chart(document.getElementById('familyChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: colours, borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+      cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw} flows`
+          },
+          backgroundColor:'rgba(2,8,23,0.95)',
+          titleColor:'#e2e8f0', bodyColor:'#94a3b8',
+          borderColor:'rgba(0,212,255,0.2)', borderWidth:1
+        }
+      },
+      animation: { duration: 900, easing: 'easeOutQuart' }
+    }
+  });
+}
+
+/* ─── Family confidence bars ──────────────────────────────-*/
+function renderFamilyBars(summary, total) {
+  const container = document.getElementById('familyBars');
+  const entries   = Object.entries(summary).sort((a,b) => b[1]-a[1]);
+  const max       = entries[0]?.[1] || 1;
+
+  container.innerHTML = entries.map(([fam, cnt], i) => {
+    const pct    = (cnt / max) * 100;
+    const colour = FAM_COLOURS[i % FAM_COLOURS.length];
+    const ratio  = ((cnt / total) * 100).toFixed(1);
+    return `
+      <div class="fbar-item">
+        <div class="fbar-head">
+          <span class="fbar-name" title="${fam}">${fam}</span>
+          <span class="fbar-count">${cnt.toLocaleString()} flows (${ratio}%)</span>
+        </div>
+        <div class="fbar-track">
+          <div class="fbar-fill" data-pct="${pct}" style="background:${colour};"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  /* Animate bars after paint */
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.fbar-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  });
+}
+
+/* ─── Export JSON ────────────────────────────────────────── */
+function exportJSON() {
+  if (!lastResult) return;
+  const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'sentinel_result_' + Date.now() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('JSON exported successfully', 'success');
+}
+
+/* ─── Copy summary ───────────────────────────────────────── */
+function copyResults() {
+  if (!lastResult) return;
+  const d = lastResult;
+  const text = [
+    `SENTINEL Threat Analysis Report`,
+    `─────────────────────────────────`,
+    `Verdict       : ${d.verdict}`,
+    `Dominant Family: ${d.dominant_family}`,
+    `Confidence    : ${d.confidence_tier}`,
+    `Malware Ratio : ${(d.malware_ratio*100).toFixed(2)}%`,
+    `Total Flows   : ${d.total_rows}`,
+    `Benign        : ${d.benign_rows}`,
+    `Malicious     : ${d.malicious_rows}`,
+    `Model Used    : ${d.model_used || 'Random Forest'}`,
+    ``,
+    `Family Breakdown:`,
+    ...Object.entries(d.summary).map(([f,c]) => `  · ${f}: ${c}`),
+    ``,
+    d.explanation
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard', 'success'));
+}
+
+/* ─── Reset UI ───────────────────────────────────────────── */
+function resetUI() {
+  document.getElementById('rContent').classList.remove('show');
+  document.getElementById('rEmpty').style.display = 'flex';
+  if (familyChartInst) { familyChartInst.destroy(); familyChartInst = null; }
+  clearFileSelection();
+  lastResult = null;
+}
+
+/* ─── History (localStorage) ─────────────────────────────── */
+function saveToHistory(data, filename) {
+  const hist = loadHistory();
+  hist.unshift({ filename, timestamp: Date.now(), verdict: data.verdict, malware_ratio: data.malware_ratio, dominant_family: data.dominant_family, total_rows: data.total_rows });
+  const trimmed = hist.slice(0, MAX_HIST);
+  localStorage.setItem(HIST_KEY, JSON.stringify(trimmed));
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; }
+  catch { return []; }
+}
+
+function clearHistory() {
+  localStorage.removeItem(HIST_KEY);
+  renderHistory();
+  showToast('History cleared', 'info');
+}
+
+function renderHistory() {
+  const hist = loadHistory();
+  const grid = document.getElementById('histGrid');
+  document.getElementById('histCount').textContent = hist.length;
+
+  if (!hist.length) {
+    grid.innerHTML = '<p class="hist-empty">No analysis history yet. Run a scan to see results here.</p>';
+    return;
+  }
+
+  grid.innerHTML = hist.map(item => {
+    const isBenign  = item.verdict === 'Benign';
+    const fillColour= isBenign ? 'var(--green)' : 'var(--red)';
+    const pct       = (item.malware_ratio * 100).toFixed(1);
+    const date      = new Date(item.timestamp).toLocaleString();
+    return `
+      <div class="hist-item">
+        <div class="hi-head">
+          <span class="hi-fname" title="${item.filename}">${item.filename}</span>
+          <span class="hi-verdict ${isBenign?'benign':'malicious'}">${item.verdict}</span>
+        </div>
+        <div class="hi-meta">
+          <span>${item.dominant_family}</span>
+          <span>${item.total_rows?.toLocaleString() || '—'} flows</span>
+        </div>
+        <div class="hi-meta" style="margin-top:3px">
+          <span>${pct}% malware</span>
+          <span style="color:var(--text-muted);font-size:.62rem">${date}</span>
+        </div>
+        <div class="hi-bar">
+          <div class="hi-bar-fill" style="width:${pct}%;background:${fillColour};"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ─── Toast ─────────────────────────────────────────────── */
+function showToast(msg, type='info') {
+  const tc   = document.getElementById('toastContainer');
+  const icon = { success:'✅', error:'❌', info:'ℹ️' }[type] || 'ℹ️';
+  const el   = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  tc.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+/* ─── Generate Report ────────────────────────────────── */
+function generateReport() {
+  if (!lastResult) return;
+  const d   = lastResult;
+  const ts  = new Date().toLocaleString();
+  const fn  = lastFile?.name || 'Unknown file';
+  const isBenign = d.verdict === 'Benign';
+  const ratio = (d.malware_ratio * 100).toFixed(1);
+  const barPct = Math.min(parseInt(ratio), 100);
+  const barCol = d.malware_ratio >= 0.5 ? '#ff3355' : (d.malware_ratio >= 0.2 ? '#ffaa00' : '#00ff9f');
+  const verdictCol = isBenign ? '#00ff9f' : '#ff3355';
+  const confCol = { High:'#ff3355', Medium:'#ffaa00', Low:'#00ff9f' }[d.confidence_tier] || '#94a3b8';
+  const model = d.model_used || 'Random Forest';
+
+  /* Build family rows */
+  const famRows = Object.entries(d.summary).sort((a,b)=>b[1]-a[1]).map(([fam,cnt],i) => {
+    const pct = ((cnt/d.total_rows)*100).toFixed(1);
+    const cols = ['#00d4ff','#a855f7','#ffaa00','#ff3355','#00ff9f','#f97316','#ec4899','#06b6d4'];
+    const c = cols[i % cols.length];
+    return `<tr>
+      <td style="padding:10px 14px;border-bottom:1px solid #1e293b;">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c};margin-right:8px;"></span>${fam}
+      </td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1e293b;font-family:monospace;text-align:right;">${cnt.toLocaleString()}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1e293b;text-align:right;">${pct}%</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1e293b;">
+        <div style="background:#1e293b;border-radius:4px;height:6px;overflow:hidden;">
+          <div style="background:${c};width:${pct}%;height:100%;border-radius:4px;"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const actions = isBenign ? '' : `
+  <div style="background:#1a0a12;border:1px solid rgba(255,51,85,0.3);border-radius:12px;padding:24px;margin-bottom:28px;">
+    <h3 style="color:#ff3355;margin:0 0 14px;font-size:14px;letter-spacing:1px;text-transform:uppercase;">⚡ Recommended Incident Response Actions</h3>
+    <ol style="margin:0;padding-left:20px;color:#94a3b8;line-height:2.2;font-size:13px;">
+      <li>Isolate the affected network segment immediately to prevent lateral movement</li>
+      <li>Capture a full memory dump and disk image of affected hosts for forensic analysis</li>
+      <li>Identify all hosts that communicated with detected <strong style="color:#e2e8f0;">${d.dominant_family}</strong> C2 servers</li>
+      <li>Check for encryption activity, shadowed copies deletion, or registry changes</li>
+      <li>Review and update firewall rules to block known ${d.dominant_family} IOC IP ranges</li>
+      <li>Notify stakeholders and begin formal incident response procedure</li>
+      <li>Preserve all evidence for legal/compliance requirements before remediation</li>
+    </ol>
+  </div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SENTINEL Threat Report — ${fn}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Space Grotesk',sans-serif; background:#020817; color:#e2e8f0; padding:0; }
+    @media print {
+      body { background:#fff !important; color:#000 !important; }
+      .no-print { display:none !important; }
+      .page-break { page-break-before:always; }
+    }
+    .report { max-width:900px; margin:0 auto; padding:40px 32px; }
+    /* Header */
+    .rpt-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:24px; border-bottom:2px solid #1e293b; margin-bottom:32px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-logo { width:44px;height:44px;background:linear-gradient(135deg,#00d4ff,#0073aa);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px; }
+    .brand-name { font-size:1.4rem;font-weight:700;letter-spacing:3px;color:#00d4ff;text-transform:uppercase; }
+    .brand-sub  { font-size:.65rem;color:#475569;font-family:'JetBrains Mono',monospace;letter-spacing:1px; }
+    .rpt-meta   { text-align:right; font-size:.72rem; color:#475569; font-family:'JetBrains Mono',monospace; line-height:1.8; }
+    /* Verdict */
+    .verdict-block { padding:24px 28px; border-radius:14px; border:1px solid; margin-bottom:28px; display:flex; align-items:center; gap:20px; }
+    .verdict-block.mal { background:rgba(255,51,85,0.06); border-color:rgba(255,51,85,0.3); }
+    .verdict-block.ben { background:rgba(0,255,159,0.06); border-color:rgba(0,255,159,0.3); }
+    .v-icon-big { font-size:2.8rem; line-height:1; }
+    .v-title { font-size:.62rem; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#64748b; margin-bottom:4px; font-family:'JetBrains Mono',monospace; }
+    .v-main  { font-size:2rem; font-weight:700; }
+    .badge-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .rpbadge { padding:4px 12px; border-radius:100px; font-size:.65rem; font-weight:600; text-transform:uppercase; font-family:'JetBrains Mono',monospace; border:1px solid; }
+    /* Section */
+    .section { margin-bottom:28px; }
+    .section-title { font-size:.65rem; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#00d4ff; margin-bottom:14px; font-family:'JetBrains Mono',monospace; padding-bottom:8px; border-bottom:1px solid #1e293b; }
+    /* Stats */
+    .stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+    .stat-box { background:#0d1120; border:1px solid #1e293b; border-radius:10px; padding:16px; text-align:center; }
+    .sb-val { font-size:1.6rem; font-weight:700; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:4px; }
+    .sb-lbl { font-size:.58rem; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#475569; }
+    /* Ratio bar */
+    .ratio-bar-wrap { margin-bottom:28px; }
+    .ratio-bar-track { background:#1e293b; border-radius:100px; height:10px; overflow:hidden; margin-top:8px; }
+    .ratio-bar-fill  { height:100%; border-radius:100px; }
+    /* Table */
+    table { width:100%; border-collapse:collapse; background:#0d1120; border-radius:10px; overflow:hidden; }
+    th { padding:10px 14px; text-align:left; font-size:.62rem; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#475569; background:#080f1e; font-family:'JetBrains Mono',monospace; }
+    th:not(:first-child) { text-align:right; }
+    /* Explanation */
+    .exp-box { background:#0d1120; border:1px solid #1e293b; border-left:3px solid #00d4ff; border-radius:0 10px 10px 0; padding:16px 20px; color:#94a3b8; line-height:1.75; font-size:13px; margin-bottom:28px; }
+    /* Print button */
+    .print-bar { position:fixed; bottom:24px; right:24px; display:flex; gap:10px; }
+    .print-btn { padding:12px 22px; border:none; border-radius:10px; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:.85rem; transition:all .2s; }
+    .btn-print { background:linear-gradient(135deg,#00d4ff,#0090cc); color:#020817; }
+    .btn-close { background:rgba(255,255,255,0.08); color:#e2e8f0; border:1px solid #1e293b; }
+    /* Footer */
+    .rpt-footer { margin-top:40px; padding-top:20px; border-top:1px solid #1e293b; text-align:center; font-size:.7rem; color:#334155; font-family:'JetBrains Mono',monospace; }
+  </style>
+</head>
+<body>
+<div class="report">
+
+  <!-- Header -->
+  <div class="rpt-header">
+    <div class="brand">
+      <div class="brand-logo">🛡️</div>
+      <div>
+        <div class="brand-name">SENTINEL</div>
+        <div class="brand-sub">Threat Intelligence Report</div>
+      </div>
+    </div>
+    <div class="rpt-meta">
+      <div>Generated: ${ts}</div>
+      <div>File: ${fn}</div>
+      <div>Model: ${model}</div>
+    </div>
+  </div>
+
+  <!-- Verdict -->
+  <div class="verdict-block ${isBenign ? 'ben' : 'mal'}">
+    <div class="v-icon-big">${isBenign ? '✅' : '🚨'}</div>
+    <div>
+      <div class="v-title">Verdict</div>
+      <div class="v-main" style="color:${verdictCol}">${d.verdict}</div>
+      <div class="badge-row">
+        <span class="rpbadge" style="color:${verdictCol};border-color:${verdictCol}33;background:${verdictCol}11;">${d.verdict}</span>
+        <span class="rpbadge" style="color:${confCol};border-color:${confCol}33;background:${confCol}11;">${d.confidence_tier} Confidence</span>
+        <span class="rpbadge" style="color:#a855f7;border-color:#a855f733;background:#a855f711;">🤖 ${model}</span>
+        <span class="rpbadge" style="color:#00d4ff;border-color:#00d4ff33;background:#00d4ff11;">🦠 ${d.dominant_family}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="section">
+    <div class="section-title">Network Flow Statistics</div>
+    <div class="stat-row">
+      <div class="stat-box">
+        <span class="sb-val" style="color:#00d4ff">${d.total_rows.toLocaleString()}</span>
+        <span class="sb-lbl">Total Flows</span>
+      </div>
+      <div class="stat-box">
+        <span class="sb-val" style="color:#00ff9f">${d.benign_rows.toLocaleString()}</span>
+        <span class="sb-lbl">Benign</span>
+      </div>
+      <div class="stat-box">
+        <span class="sb-val" style="color:#ff3355">${d.malicious_rows.toLocaleString()}</span>
+        <span class="sb-lbl">Malicious</span>
+      </div>
+      <div class="stat-box">
+        <span class="sb-val" style="color:${barCol}">${ratio}%</span>
+        <span class="sb-lbl">Malware Ratio</span>
+      </div>
+    </div>
+    <div class="ratio-bar-wrap">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:#475569;font-family:'JetBrains Mono',monospace;margin-bottom:4px;">
+        <span>Malware Ratio</span><span style="color:${barCol};font-weight:600;">${ratio}%</span>
+      </div>
+      <div class="ratio-bar-track">
+        <div class="ratio-bar-fill" style="width:${barPct}%;background:${barCol};"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Family Breakdown -->
+  <div class="section">
+    <div class="section-title">Ransomware Family Breakdown</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Family</th>
+          <th style="text-align:right">Flows</th>
+          <th style="text-align:right">Share</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>${famRows}</tbody>
+    </table>
+  </div>
+
+  <!-- Analysis -->
+  <div class="section">
+    <div class="section-title">Analysis Summary</div>
+    <div class="exp-box">💡 ${d.explanation}</div>
+  </div>
+
+  ${actions}
+
+  <div class="rpt-footer">
+    SENTINEL Threat Intelligence Platform &nbsp;·&nbsp; Auto-generated  report &nbsp;·&nbsp; ${ts}
+  </div>
+</div>
+
+<!-- Print bar -->
+<div class="print-bar no-print">
+  <button class="print-btn btn-close" onclick="window.close()">✕ Close</button>
+  <button class="print-btn btn-print" onclick="window.print()">🖨 Save as PDF</button>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  showToast('Report opened — click "Save as PDF" in the new tab', 'success');
+}
+
+/* ─── Alert Settings ─────────────────────────────────── */
+const ADMIN_EMAIL_KEY   = 'sentinel_admin_email';
+const AUTO_ALERT_KEY    = 'sentinel_auto_alert';
+
+function toggleAlertPanel() {
+  const body    = document.getElementById('alertBody');
+  const chevron = document.getElementById('alertChevron');
+  const isOpen  = body.classList.toggle('open');
+  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+  if (isOpen) checkSmtpStatus();
+}
+
+function saveAdminEmail() {
+  const email = document.getElementById('savedEmail').value.trim();
+  if (!email || !email.includes('@')) { showToast('Enter a valid email address', 'error'); return; }
+  localStorage.setItem(ADMIN_EMAIL_KEY, email);
+  showToast('Admin email saved: ' + email, 'success');
+}
+
+function loadAlertPrefs() {
+  const email = localStorage.getItem(ADMIN_EMAIL_KEY) || '';
+  const auto  = localStorage.getItem(AUTO_ALERT_KEY) === 'true';
+  if (email) document.getElementById('savedEmail').value = email;
+  document.getElementById('autoAlertToggle').checked = auto;
+  document.getElementById('autoAlertToggle').addEventListener('change', e => {
+    localStorage.setItem(AUTO_ALERT_KEY, e.target.checked);
+  });
+}
+
+async function checkSmtpStatus() {
+  const row = document.getElementById('smtpStatusRow');
+  try {
+    const res  = await fetch('/alert-status');
+    const data = await res.json();
+    if (data.configured) {
+      row.className = 'alert-status-row configured';
+      row.textContent = '✓ SMTP configured — sender: ' + data.sender;
+    } else {
+      row.className = 'alert-status-row unconfigured';
+      row.textContent = '⚠ SMTP not configured — edit app/api/smtp_config.py';
+    }
+  } catch {
+    row.className = 'alert-status-row unconfigured';
+    row.textContent = '⚠ Could not reach /alert-status';
+  }
+}
+
+/* Show / hide the alert banner in results */
+function updateAlertBanner(isMalicious) {
+  const row   = document.getElementById('alertBannerRow');
+  const label = document.getElementById('alertTargetEmail');
+  if (!isMalicious) { row.style.display = 'none'; return; }
+
+  const email = localStorage.getItem(ADMIN_EMAIL_KEY) || '';
+  label.textContent = email ? 'Will alert: ' + email : 'No email configured — set one below';
+  row.style.display = 'block';
+
+  /* Auto-alert if toggled on */
+  if (email && localStorage.getItem(AUTO_ALERT_KEY) === 'true') {
+    setTimeout(() => doSendAlert(email), 500);
+  }
+}
+
+/* ─── Alert Modal ────────────────────────────────────── */
+function openAlertModal() {
+  const email = localStorage.getItem(ADMIN_EMAIL_KEY) || '';
+  document.getElementById('modalEmail').value = email;
+  document.getElementById('alertModal').classList.add('open');
+}
+
+function closeAlertModal() {
+  document.getElementById('alertModal').classList.remove('open');
+}
+
+/* Close on backdrop click */
+document.getElementById('alertModal').addEventListener('click', e => {
+  if (e.target.id === 'alertModal') closeAlertModal();
+});
+
+async function sendAlertEmail() {
+  const email = document.getElementById('modalEmail').value.trim();
+  if (!email || !email.includes('@')) { showToast('Enter a valid email address', 'error'); return; }
+  localStorage.setItem(ADMIN_EMAIL_KEY, email);
+  document.getElementById('savedEmail').value = email;
+  closeAlertModal();
+  await doSendAlert(email);
+}
+
+async function doSendAlert(adminEmail) {
+  if (!lastResult) return;
+  showToast('Sending alert to ' + adminEmail + '…', 'info');
+
+  const payload = {
+    admin_email:      adminEmail,
+    filename:         lastFile?.name || 'unknown',
+    verdict:          lastResult.verdict,
+    dominant_family:  lastResult.dominant_family,
+    malware_ratio:    lastResult.malware_ratio,
+    total_rows:       lastResult.total_rows,
+    benign_rows:      lastResult.benign_rows,
+    malicious_rows:   lastResult.malicious_rows,
+    confidence_tier:  lastResult.confidence_tier,
+    explanation:      lastResult.explanation,
+    model_used:       lastResult.model_used || 'Random Forest'
+  };
+
+  try {
+    const res  = await fetch('/send-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast('✅ Alert sent to ' + adminEmail, 'success');
+    } else {
+      showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showToast('Alert request failed: ' + err.message, 'error');
+  }
+}
+
+/* Hook into renderResults so the alert banner updates automatically */
+const _origRenderResults = renderResults;
+renderResults = function(data, filename) {
+  _origRenderResults(data, filename);
+  updateAlertBanner(data.verdict !== 'Benign');
+};
+
+/* ─── Boot ─────────────────────────────────────────────── */
+renderHistory();
+loadAlertPrefs();
+</script>
+</body>
+</html>
